@@ -23,8 +23,8 @@ argsp.add_argument("path",
                    default=".",
                    help="Where to create the repository.")
 
-# CAT-FILE
-argsp = argsubparsers.add_parser("cat-file",help="Provide content of repository objects")
+# UNHASH
+argsp = argsubparsers.add_parser("unhash",help="Provide content of repository objects")
 argsp.add_argument("type",
                    metavar="type",
                    choices=["blob", "commit", "tag", "tree"],
@@ -34,7 +34,7 @@ argsp.add_argument("object",
                    metavar="object",
                    help="The object to display")
 
-# HASH-OBJECT
+# HASH
 argsp = argsubparsers.add_parser(
     "hash",
     help="Compute object ID and optionally creates a blob from a file")
@@ -61,11 +61,11 @@ def main(argv=sys.argv[1:]):
     args = argparser.parse_args(argv)
     match args.command:
         case "add"          : cmd_add(args)
-        case "cat-file"     : cmd_cat_file(args)
+        case "unhash"       : cmd_unhash(args) #git cat-file
         case "check-ignore" : cmd_check_ignore(args)
         case "checkout"     : cmd_checkout(args)
         case "commit"       : cmd_commit(args)
-        case "hash"         : cmd_hash_object(args)
+        case "hash"         : cmd_hash(args) #git hash_object
         case "init"         : cmd_init(args)
         case "log"          : cmd_log(args)
         case "ls-files"     : cmd_ls_files(args)
@@ -81,11 +81,11 @@ def cmd_init(args):
     repo._create(args.path)
 
 
-def cmd_cat_file(args):
+def cmd_unhash(args):
     repo_ = repo._find()
     object.cat_file(repo_, args.object, fmt=args.type.encode())
 
-def cmd_hash_object(args):
+def cmd_hash(args):
     if args.write:
         repo_ = repo._find()
     else:
