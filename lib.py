@@ -1,5 +1,4 @@
 import argparse
-import collections
 from datetime import datetime
 from fnmatch import fnmatch
 from math import ceil
@@ -9,7 +8,7 @@ import zlib
 
 import  classes.repo as repo
 import  classes.object as object
-
+import  classes.commit as commit
 
 argparser = argparse.ArgumentParser(description="The stupidest content tracker")
 argsubparsers = argparser.add_subparsers(title="Commands", dest="command")
@@ -54,7 +53,13 @@ argsp.add_argument("-w",
 argsp.add_argument("path",
                    help="Read object from <file>")
 
+# LOG
 
+argsp = argsubparsers.add_parser("log", help="Display history of a given commit.")
+argsp.add_argument("commit",
+                   default="HEAD",
+                   nargs="?",
+                   help="Commit to start at.")
 
 
 def main(argv=sys.argv[1:]):
@@ -94,6 +99,15 @@ def cmd_hash(args):
     with open(args.path, "rb") as fd:
         sha = object._hash(fd, args.type.encode(), repo_)
         print(sha)
+
+def cmd_log(args):
+    repo_ = repo._find()
+
+    print("digraph wyaglog{")
+    print("  node[shape=rect]")
+    object.log(repo_, object._find(repo_, args.commit), set())
+    print("}")
+
 
 
 
