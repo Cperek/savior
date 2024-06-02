@@ -2,6 +2,8 @@ import zlib
 import os
 import classes.repo as repoObj
 import classes.commit as commitObj
+import classes.tree as treeObj
+import collections
 
 import hashlib
 import sys
@@ -49,12 +51,24 @@ class GitCommit(GitObject):
     def init(self):
         self.kvlm = dict()      
 
+class GitTree(GitObject):
+    fmt=b'tree'
+
+    def deserialize(self, data):
+        self.items = treeObj.parse(data)
+
+    def serialize(self):
+        return treeObj.serialize(self)
+
+    def init(self):
+        self.items = list()
+
 def _read(repo, sha):
     """Read object sha from Git repository repo.  Return a
     GitObject whose exact type depends on the object."""
 
     path = repoObj._file(repo, "objects", sha[0:2], sha[2:])
-
+    print(path);
     if not os.path.isfile(path):
         return None
 
@@ -156,3 +170,89 @@ def log(repo, sha, seen):
         p = p.decode("ascii")
         print ("  c_{0} -> c_{1};".format(sha, p))
         log(repo, p, seen)
+
+
+def ls_tree(repo, ref, recursive=None, prefix=""):
+    sha = _find(repo, ref, fmt=b"tree")
+    obj = _read(repo, sha)
+    for item in obj.items:
+        if len(item.mode) == 5:
+            type = item.mode[0:1]
+        else:
+            type = item.mode[0:2]
+
+        match type: # Determine the type.
+            case b'04': type = "tree"
+            case b'10': type = "blob" # A regular file.
+            case b'12': type = "blob" # A symlink. Blob contents is link target.
+            case b'16': type = "commit" # A submodule
+            case _: raise Exception("Weird tree leaf mode {}".format(item.mode))
+
+        if not (recursive and type=='tree'): # This is a leaf
+            print("{0} {1} {2}\t{3}".format(
+                "0" * (6 - len(item.mode)) + item.mode.decode("ascii"),
+                # Git's ls-tree displays the type
+                # of the object pointed to.  We can do that too :)
+                type,
+                item.sha,
+                os.path.join(prefix, item.path)))
+        else: # This is a branch, recurse
+            ls_tree(repo, item.sha, recursive, os.path.join(prefix, item.path))
+
+
+def checkout(repo, tree, path):
+    for item in tree.items:
+        obj = _read(repo, item.sha)
+        dest = os.path.join(path, item.path)
+
+        if obj.fmt == b'tree':
+            os.mkdir(dest)
+            checkout(repo, obj, dest)
+        elif obj.fmt == b'blob':
+            # @TODO Support symlinks (identified by mode 12****)
+            with open(dest, 'wb') as f:
+                f.write(obj.blobdata)
+
+def ref_resolve(repo, ref):
+    path = repoObj._file(repo, ref)
+
+    # Sometimes, an indirect reference may be broken.  This is normal
+    # in one specific case: we're looking for HEAD on a new repository
+    # with no commits.  In that case, .git/HEAD points to "ref:
+    # refs/heads/main", but .git/refs/heads/main doesn't exist yet
+    # (since there's no commit for it to refer to).
+    if not os.path.isfile(path):
+        return None
+
+    with open(path, 'r') as fp:
+        data = fp.read()[:-1]
+        # Drop final \n ^^^^^
+    if data.startswith("ref: "):
+        return ref_resolve(repo, data[5:])
+    else:
+        return data
+    
+def ref_list(repo, path=None):
+    if not path:
+        path = repoObj._dir(repo, "refs")
+    ret = collections.OrderedDict()
+    # Git shows refs sorted.  To do the same, we use
+    # an OrderedDict and sort the output of listdir
+    for f in sorted(os.listdir(path)):
+        can = os.path.join(path, f)
+        if os.path.isdir(can):
+            ret[f] = ref_list(repo, can)
+        else:
+            ret[f] = ref_resolve(repo, can)
+
+    return ret
+
+def show_ref(repo, refs, with_hash=True, prefix=""):
+    for k, v in refs.items():
+        if type(v) == str:
+            print ("{0}{1}{2}".format(
+                v + " " if with_hash else "",
+                prefix + "/" if prefix else "",
+                k))
+        else:
+            show_ref(repo, v, with_hash=with_hash, prefix="{0}{1}{2}".format(prefix, "/" if prefix else "", k))

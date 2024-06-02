@@ -4,13 +4,14 @@ def parse(raw, start = 0, dct = None):
     if not dct:
         dct = collections.OrderedDict()
 
-    spc = raw.find(b' ', start);
-    nl = raw.find(b'\n', start);
+    spc = raw.find(b' ', start)
+    nl = raw.find(b'\n', start)
 
 
     if (spc < 0) or (nl < spc):
-        assert(nl == start)
-        return dct, nl+1
+        assert nl == start
+        dct[None] = raw[start+1:]
+        return dct
     
     key = raw[start:spc]
 

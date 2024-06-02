@@ -3,12 +3,14 @@ from datetime import datetime
 from fnmatch import fnmatch
 from math import ceil
 import re
+import os
 import sys
 import zlib
 
 import  classes.repo as repo
 import  classes.object as object
 import  classes.commit as commit
+import  classes.tree as tree
 
 argparser = argparse.ArgumentParser(description="The stupidest content tracker")
 argsubparsers = argparser.add_subparsers(title="Commands", dest="command")
@@ -61,6 +63,29 @@ argsp.add_argument("commit",
                    nargs="?",
                    help="Commit to start at.")
 
+# LS-TREE
+
+argsp = argsubparsers.add_parser("ls-tree", help="Pretty-print a tree object.")
+argsp.add_argument("-r",
+                   dest="recursive",
+                   action="store_true",
+                   help="Recurse into sub-trees")
+
+argsp.add_argument("tree",
+                   help="A tree-ish object.")
+
+# CHECKOUT
+
+argsp = argsubparsers.add_parser("checkout", help="Checkout a commit inside of a directory.")
+
+argsp.add_argument("commit",
+                   help="The commit or tree to checkout.")
+
+argsp.add_argument("path",
+                   help="The EMPTY directory to checkout on.")
+
+# SHOW-REF
+argsp = argsubparsers.add_parser("show-ref", help="List references.")
 
 def main(argv=sys.argv[1:]):
     args = argparser.parse_args(argv)
@@ -110,10 +135,36 @@ def cmd_log(args):
 
 
 
+def cmd_ls_tree(args):
+    repo_ = repo._find()
+    object.ls_tree(repo_, args.tree, args.recursive)
 
+def cmd_checkout(args):
+    repo_ = repo._find()
+
+    obj = object._read(repo_, object._find(repo_, args.commit))
+
+    # If the object is a commit, we grab its tree
+    if obj.fmt == b'commit':
+        obj = object._read(repo_, obj.kvlm[b'tree'].decode("ascii"))
+
+    # Verify that path is an empty directory
+    if os.path.exists(args.path):
+        if not os.path.isdir(args.path):
+            raise Exception("Not a directory {0}!".format(args.path))
+        if os.listdir(args.path):
+            raise Exception("Not empty {0}!".format(args.path))
+    else:
+        os.makedirs(args.path)
+
+    object.checkout(repo_, obj, os.path.realpath(args.path))
             
 
 
+def cmd_show_ref(args):
+    repo_ = repo._find()
+    refs = object.ref_list(repo_)
+    object.show_ref(repo_, refs, prefix="refs")
 
         
 
