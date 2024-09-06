@@ -88,6 +88,9 @@ argsp.add_argument("path",
 argsp = argsubparsers.add_parser("show-ref", help="List references.")
 
 def main(argv=sys.argv[1:]):
+    if len(argv) == 0:
+        return argparser.print_usage();
+
     args = argparser.parse_args(argv)
     match args.command:
         case "add"          : cmd_add(args)
